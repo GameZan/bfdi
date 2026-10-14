@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BFDI Season 1 Simulator</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --text: #eaeaea;
+    --safe: #4ecca3;
+    --danger: #e94560;
+    --gold: #ffd700;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 2.2rem;
+    margin-bottom: 8px;
+    text-shadow: 0 0 12px var(--accent);
+    letter-spacing: 1px;
+  }
+  .subtitle { opacity: 0.8; margin-bottom: 24px; font-size: 0.95rem; }
+  .panel {
+    background: var(--panel);
+    border: 2px solid var(--accent2);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 900px;
+    width: 100%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .contestant-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    margin: 16px 0 24px;
+  }
+  .contestant-card {
+    background: var(--accent2);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .contestant-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+  .contestant-card.selected { border-color: var(--gold); background: #2a4a6e; box-shadow: 0 0 12px rgba(255,215,0,0.4); }
+  .contestant-card .emoji { font-size: 2rem; display: block; margin-bottom: 4px; }
+  .contestant-card .name { font-size: 0.85rem; font-weight: 600; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 28px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  button:hover { background: #ff6b81; transform: scale(1.03); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  button.secondary { background: var(--accent2); }
+  button.secondary:hover { background: #1a4a7a; }
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+  }
+  .status-bar span { background: var(--accent2); padding: 6px 14px; border-radius: 8px; }
+  .challenge-area {
+    text-align: center;
+    padding: 20px 0;
+  }
+  .challenge-title { font-size: 1.6rem; color: var(--gold); margin-bottom: 8px; }
+  .challenge-desc { opacity: 0.85; margin-bottom: 20px; line-height: 1.5; }
+  .score-display {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--safe);
+    margin: 16px 0;
+  }
+  .progress-bar-outer {
+    height: 18px;
+    background: #0a1628;
+    border-radius: 9px;
+    overflow: hidden;
+    margin: 12px auto;
+    max-width: 400px;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    width: 0%;
+    transition: width 0.15s;
+  }
+  .mini-game {
+    margin: 20px auto;
+    max-width: 420px;
+  }
+  .balance-beam {
+    position: relative;
+    height: 80px;
+    background: #0a1628;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .beam {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    width: 60%;
+    height: 8px;
+    background: #888;
+    transform: translateX(-50%) rotate(0deg);
+    transform-origin: center;
+    transition: transform 0.05s;
+  }
+  .player-dot {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: var(--gold);
+    border-radius: 50%;
+    left: 50%;
+    bottom: 42px;
+    transform: translateX(-50%);
+  }
+  .click-zone {
+    width: 100%;
+    height: 120px;
+    background: var(--accent2);
+    border: 3px dashed var(--accent);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+  }
+  .click-zone:active, .click-zone.active { background: var(--accent); }
+  .quiz-options { display: flex; flex-direction: column; gap: 10px; max-width: 400px; margin: 0 auto; }
+  .quiz-options button { width: 100%; text-align: left; }
+  .log {
+    background: #0a1628;
+    border-radius: 10px;
+    padding: 14px;
+    max-height: 180px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-top: 16px;
+    text-align: left;
+  }
+  .tlc-area {
+    text-align: center;
+  }
+  .tlc-btn {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    background: linear-gradient(145deg, #e94560, #c23152);
+    box-shadow: 0 8px 24px rgba(233,69,96,0.5);
+    margin: 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tlc-btn:active { transform: scale(0.92); }
+  .timer { font-size: 2.8rem; font-weight: 700; color: var(--gold); }
+  .result-msg { font-size: 1.4rem; margin: 16px 0; }
+  .eliminated-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    justify-content: center;
+  }
+  .elim-tag {
+    background: #3a1a2e;
+    border: 1px solid var(--danger);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+  .winner-screen { text-align: center; }
+  .winner-screen h2 { font-size: 2.4rem; color: var(--gold); margin: 20px 0; }
+  .hidden { display: none !important; }
+  .key-hint { font-size: 0.85rem; opacity: 0.7; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>🏆 BFDI Season 1 Simulator</h1>
+  <p class="subtitle">Battle for Dream Island • Faithful challenge order • TLC appeals</p>
+
+  <!-- SCREEN: Character Select -->
+  <div id="screen-select" class="panel screen active">
+    <h2 style="margin-bottom:12px;">Choose your contestant</h2>
+    <p style="opacity:0.8;margin-bottom:12px;">You'll compete through Season 1 challenges. Higher challenge scores = lower chance of being voted off. Get eliminated? Appeal from the TLC!</p>
+    <div class="contestant-grid" id="contestant-grid"></div>
+    <button id="btn-start" disabled>Start Season 1</button>
+  </div>
+
+  <!-- SCREEN: Main Game -->
+  <div id="screen-game" class="panel screen">
+    <div class="status-bar">
+      <span id="stat-player">Playing as: —</span>
+      <span id="stat-ep">Episode 1</span>
+      <span id="stat-alive">Alive: 20</span>
+    </div>
+    <div class="challenge-area">
+      <div class="challenge-title" id="chal-title">Challenge</div>
+      <div class="challenge-desc" id="chal-desc"></div>
+      <div id="mini-game-container" class="mini-game"></div>
+      <div class="score-display" id="score-display">Score: 0</div>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
+      <button id="btn-do-challenge">Start Challenge</button>
+      <button id="btn-next" class="secondary hidden">Continue to Cake at Stake</button>
+    </div>
+    <div class="log" id="game-log"></div>
+    <div style="margin-top:12px;text-align:center;">
+      <strong>Eliminated (TLC):</strong>
+      <div class="eliminated-list" id="elim-list"></div>
+    </div>
+  </div>
+
+  <!-- SCREEN: Cake at Stake / Voting -->
+  <div id="screen-vote" class="panel screen">
+    <h2 style="text-align:center;color:var(--gold);">🍰 Cake at Stake</h2>
+    <p id="vote-msg" style="text-align:center;margin:16px 0;line-height:1.5;"></p>
+    <div class="log" id="vote-log"></div>
+    <div style="text-align:center;margin-top:20px;">
+      <button id="btn-vote-continue">Continue</button>
+    </div>
+  </div>
+
+  <!-- SCREEN: TLC Appeal -->
+  <div id="screen-tlc" class="panel screen">
+    <div class="tlc-area">
+      <h2 style="color:var(--danger);">🔒 Tiny Loser Chamber</h2>
+      <p style="margin:12px 0;opacity:0.9;">You've been eliminated! Make as many appeals as you can in <strong>30 seconds</strong>.<br>Get <strong>80 or more</strong> to rejoin. 79 or fewer = permanent elimination & restart.</p>
+      <div class="timer" id="tlc-timer">30.0</div>
+      <div class="score-display" id="tlc-count">Appeals: 0</div>
+      <button class="tlc-btn" id="btn-appeal">APPEAL!</button>
+      <p class="key-hint">Spam click / spacebar as fast as you can!</p>
+      <div id="tlc-result" class="result-msg hidden"></div>
+      <button id="btn-tlc-done" class="hidden">Continue</button>
+    </div>
+  </div>
+
+  <!-- SCREEN: Game Over / Win -->
+  <div id="screen-end" class="panel screen">
+    <div class="winner-screen">
+      <h2 id="end-title">Game Over</h2>
+      <p id="end-msg" style="margin:16px 0;line-height:1.6;"></p>
+      <button id="btn-restart">Play Again</button>
+    </div>
+  </div>
+
+<script>
+// ========== DATA ==========
+const CONTESTANTS = [
+  { id: 'blocky', name: 'Blocky', emoji: '🟥' },
+  { id: 'bubble', name: 'Bubble', emoji: '🫧' },
+  { id: 'coiny', name: 'Coiny', emoji: '🪙' },
+  { id: 'eraser', name: 'Eraser', emoji: '🟧' },
+  { id: 'firey', name: 'Firey', emoji: '🔥' },
+  { id: 'flower', name: 'Flower', emoji: '🌸' },
+  { id: 'golfball', name: 'Golf Ball', emoji: '⚪' },
+  { id: 'icecube', name: 'Ice Cube', emoji: '🧊' },
+  { id: 'leafy', name: 'Leafy', emoji: '🍃' },
+  { id: 'match', name: 'Match', emoji: '火柴' },
+  { id: 'needle', name: 'Needle', emoji: '🪡' },
+  { id: 'pen', name: 'Pen', emoji: '🖊️' },
+  { id: 'pencil', name: 'Pencil', emoji: '✏️' },
+  { id: 'pin', name: 'Pin', emoji: '📌' },
+  { id: 'rocky', name: 'Rocky', emoji: '🪨' },
+  { id: 'snowball', name: 'Snowball', emoji: '❄️' },
+  { id: 'spongy', name: 'Spongy', emoji: '🧽' },
+  { id: 'teardrop', name: 'Teardrop', emoji: '💧' },
+  { id: 'tennisball', name: 'Tennis Ball', emoji: '🎾' },
+  { id: 'woody', name: 'Woody', emoji: '🪵' }
+];
+
+// Fix Match emoji (Chinese characters looked wrong)
+CONTESTANTS.find(c => c.id === 'match').emoji = '🕯️';
+
+const CHALLENGES = [
+  { ep: 1, title: 'Balance Beam', desc: 'Stay on the balance beam as long as possible! Keep the beam level by pressing left/right (or A/D).', type: 'balance' },
+  { ep: 2, title: 'Boats', desc: 'Build a boat and race across the Goiky Canal! Click rapidly to paddle.', type: 'clickspam', target: 80 },
+  { ep: 3, title: 'Obstacle Course', desc: 'Race through barriers and pitfalls! Click the zone when it flashes green.', type: 'reaction', rounds: 8 },
+  { ep: 4, title: 'Are You Smarter Than a Snowball?', desc: 'Complete the written test! Answer the questions correctly.', type: 'quiz' },
+  { ep: 5, title: 'Sweet Tooth', desc: 'Bake the best cake! Time your mixes perfectly.', type: 'timing', rounds: 6 },
+  { ep: 6, title: 'Bridge Crossing', desc: 'Cross the unstable bridge! Keep your balance with A/D keys.', type: 'balance' },
+  { ep: 7, title: 'Power of Three', desc: 'Work in mini-teams of three. Click to clear obstacles on the islands!', type: 'clickspam', target: 70 },
+  { ep: 8, title: 'Puzzling Mysteries', desc: 'Solve the team jigsaw puzzle by matching shapes under time pressure.', type: 'reaction', rounds: 7 },
+  { ep: 9, title: 'Cycle of Life', desc: 'Relay race to the tree and back! Spam click to run.', type: 'clickspam', target: 90 },
+  { ep: 10, title: "Insectophobe's Nightmare", desc: 'Squash the bugs! Click them as they appear.', type: 'reaction', rounds: 10 },
+  { ep: 11, title: 'Crybaby!', desc: 'Climb the building while avoiding tears. Time your jumps!', type: 'timing', rounds: 7 },
+  { ep: 12, title: 'A Leg Up in the Race', desc: 'The teams are gone! Individual leg race — spam click to sprint.', type: 'clickspam', target: 100 },
+  { ep: 13, title: "Don't Lose Your Marbles", desc: 'Guide your marble through the maze with careful timing.', type: 'timing', rounds: 8 },
+  { ep: 14, title: 'Half a Loaf Is Better Than None', desc: 'Collect bread pieces by reacting quickly!', type: 'reaction', rounds: 8 },
+  { ep: 15, title: 'Vomitaco', desc: 'Eat the tacos... carefully. Time each bite!', type: 'timing', rounds: 6 },
+  { ep: 16, title: 'Bowling, Now with Explosions!', desc: 'Knock down pins — click at the perfect moment.', type: 'timing', rounds: 7 },
+  { ep: 17, title: 'The Reveal', desc: 'Treasure hunt! React fast to find the items.', type: 'reaction', rounds: 9 },
+  { ep: 18, title: 'Reveal Novum', desc: 'More revelations and a race. Spam click to finish first!', type: 'clickspam', target: 85 },
+  { ep: 19, title: 'Rescission', desc: 'Keep your balance on the shrinking platform!', type: 'balance' },
+  { ep: 20, title: 'Gardening Hero', desc: 'Plant and water as fast as you can!', type: 'clickspam', target: 75 },
+  { ep: 21, title: 'The Glistening', desc: 'Shine the objects! Time your polish strokes.', type: 'timing', rounds: 8 },
+  { ep: 22, title: "Don't Pierce My Flesh", desc: 'Avoid the spikes with precise reactions.', type: 'reaction', rounds: 9 },
+  { ep: 23, title: 'Hurtful!', desc: 'Survive the painful challenges with perfect timing.', type: 'timing', rounds: 7 },
+  { ep: 24, title: "Insectophobe's Nightmare 2", desc: 'Even more bugs to squash!', type: 'reaction', rounds: 12 },
+  { ep: 25, title: 'Return of the Hang Glider', desc: 'Final challenge! Race on hang gliders to Dream Island. Spam click!', type: 'clickspam', target: 120 }
+];
+
+const QUIZ_QUESTIONS = [
+  { q: 'What is the prize of BFDI?', a: ['Dream Island', 'A cake', 'A Win Token', 'Yoylecake'], correct: 0 },
+  { q: 'Who is the host of Season 1?', a: ['Announcer', 'Four', 'Two', 'X'], correct: 0 },
+  { q: 'Which team did Leafy captain?', a: ['Squashy Grapes', 'Squishy Cherries', 'Another Name', 'FreeSmart'], correct: 0 },
+  { q: 'What does a Win Token do?', a: ['Halves your votes', 'Gives you immunity', 'Lets you rejoin', 'Doubles your score'], correct: 0 },
+  { q: 'Who was the first eliminated in BFDI?', a: ['Flower', 'Woody', 'Spongy', 'Blocky'], correct: 0 }
+];
+
+// ========== STATE ==========
+let state = {
+  playerId: null,
+  playerName: '',
+  playerEmoji: '',
+  episode: 0,
+  alive: [],
+  eliminated: [],
+  playerScore: 0,
+  challengeActive: false,
+  lastScore: 0,
+  rejoined: false
+};
+
+// ========== UI HELPERS ==========
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function log(msg, target = 'game-log') {
+  const el = document.getElementById(target);
+  el.innerHTML += msg + '<br>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateStatus() {
+  document.getElementById('stat-player').textContent = `Playing as: ${state.playerEmoji} ${state.playerName}`;
+  document.getElementById('stat-ep').textContent = `Episode ${Math.min(state.episode + 1, 25)}`;
+  document.getElementById('stat-alive').textContent = `Alive: ${state.alive.length}`;
+  const elimList = document.getElementById('elim-list');
+  elimList.innerHTML = state.eliminated.map(id => {
+    const c = CONTESTANTS.find(x => x.id === id);
+    return `<span class="elim-tag">${c.emoji} ${c.name}</span>`;
+  }).join('') || '<span style="opacity:0.5">None yet</span>';
+}
+
+// ========== SELECT SCREEN ==========
+const grid = document.getElementById('contestant-grid');
+CONTESTANTS.forEach(c => {
+  const card = document.createElement('div');
+  card.className = 'contestant-card';
+  card.dataset.id = c.id;
+  card.innerHTML = `<span class="emoji">${c.emoji}</span><span class="name">${c.name}</span>`;
+  card.onclick = () => {
+    document.querySelectorAll('.contestant-card').forEach(x => x.classList.remove('selected'));
+    card.classList.add('selected');
+    state.playerId = c.id;
+    state.playerName = c.name;
+    state.playerEmoji = c.emoji;
+    document.getElementById('btn-start').disabled = false;
+  };
+  grid.appendChild(card);
+});
+
+document.getElementById('btn-start').onclick = () => {
+  state.alive = CONTESTANTS.map(c => c.id);
+  state.eliminated = [];
+  state.episode = 0;
+  state.rejoined = false;
+  document.getElementById('game-log').innerHTML = '';
+  showScreen('screen-game');
+  updateStatus();
+  startChallenge();
+};
+
+// ========== CHALLENGE ENGINE ==========
+function startChallenge() {
+  if (state.episode >= CHALLENGES.length) {
+    // Player reached the end
+    endGame(true);
+    return;
+  }
+  const chal = CHALLENGES[state.episode];
+  document.getElementById('chal-title').textContent = `Ep ${chal.ep}: ${chal.title}`;
+  document.getElementById('chal-desc').textContent = chal.desc;
+  document.getElementById('score-display').textContent = 'Score: 0';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('btn-do-challenge').classList.remove('hidden');
+  document.getElementById('btn-do-challenge').disabled = false;
+  document.getElementById('btn-do-challenge').textContent = 'Start Challenge';
+  document.getElementById('btn-next').classList.add('hidden');
+  document.getElementById('mini-game-container').innerHTML = '';
+  state.challengeActive = false;
+  state.lastScore = 0;
+}
+
+document.getElementById('btn-do-challenge').onclick = () => {
+  if (state.challengeActive) return;
+  state.challengeActive = true;
+  document.getElementById('btn-do-challenge').disabled = true;
+  const chal = CHALLENGES[state.episode];
+  runMiniGame(chal);
+};
+
+function finishChallenge(score) {
+  state.challengeActive = false;
+  state.lastScore = Math.max(0, Math.min(100, Math.round(score)));
+  document.getElementById('score-display').textContent = `Score: ${state.lastScore}`;
+  document.getElementById('progress-bar').style.width = state.lastScore + '%';
+  document.getElementById('btn-do-challenge').classList.add('hidden');
+  document.getElementById('btn-next').classList.remove('hidden');
+  log(`You scored <strong>${state.lastScore}</strong> on "${CHALLENGES[state.episode].title}".`);
+}
+
+document.getElementById('btn-next').onclick = () => {
+  doVoting();
+};
+
+// ========== MINI-GAMES ==========
+function runMiniGame(chal) {
+  const container = document.getElementById('mini-game-container');
+  container.innerHTML = '';
+
+  if (chal.type === 'balance') {
+    runBalanceGame(container);
+  } else if (chal.type === 'clickspam') {
+    runClickSpam(container, chal.target || 80);
+  } else if (chal.type === 'reaction') {
+    runReactionGame(container, chal.rounds || 8);
+  } else if (chal.type === 'timing') {
+    runTimingGame(container, chal.rounds || 6);
+  } else if (chal.type === 'quiz') {
+    runQuiz(container);
+  }
+}
+
+function runBalanceGame(container) {
+  container.innerHTML = `
+    <div class="balance-beam">
+      <div class="beam" id="beam"></div>
+      <div class="player-dot" id="player-dot"></div>
+    </div>
+    <p class="key-hint">Hold A / ← to tilt left • D / → to tilt right. Stay balanced for 12 seconds!</p>
+  `;
+  let angle = 0;
+  let vel = 0;
+  let time = 0;
+  let alive = true;
+  const duration = 12;
+  const start = performance.now();
+  const keys = { left: false, right: false };
+
+  const onKey = e => {
+    if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = e.type === 'keydown';
+    if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = e.type === 'keydown';
+  };
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('keyup', onKey);
+
+  const loop = (now) => {
+    if (!alive) return;
+    const dt = 0.016;
+    time = (now - start) / 1000;
+    // random drift
+    vel += (Math.random() - 0.5) * 0.8;
+    if (keys.left) vel -= 2.2;
+    if (keys.right) vel += 2.2;
+    vel *= 0.92;
+    angle += vel * dt * 60;
+    angle = Math.max(-45, Math.min(45, angle));
+    document.getElementById('beam').style.transform = `translateX(-50%) rotate(${angle}deg)`;
+    document.getElementById('player-dot').style.transform = `translateX(calc(-50% + ${angle * 1.5}px))`;
+
+    const progress = Math.min(100, (time / duration) * 100);
+    document.getElementById('progress-bar').style.width = progress + '%';
+    document.getElementById('score-display').textContent = `Time: ${time.toFixed(1)}s`;
+
+    if (Math.abs(angle) > 38) {
+      alive = false;
+      cleanup();
+      const score = Math.max(10, (time / duration) * 100);
+      finishChallenge(score);
+      return;
+    }
+    if (time >= duration) {
+      alive = false;
+      cleanup();
+      finishChallenge(100);
+      return;
+    }
+    requestAnimationFrame(loop);
+  };
+  function cleanup() {
+    window.removeEventListener('keydown', onKey);
+    window.removeEventListener('keyup', onKey);
+  }
+  requestAnimationFrame(loop);
+}
+
+function runClickSpam(container, target) {
+  let clicks = 0;
+  const timeLimit = 8;
+  container.innerHTML = `<div class="click-zone" id="click-zone">CLICK / TAP HERE!</div>
+    <p class="key-hint">Spam clicks or spacebar for ${timeLimit} seconds. Target: ~${target} clicks for high score.</p>`;
+  const zone = document.getElementById('click-zone');
+  const start = performance.now();
+  let done = false;
+
+  const addClick = () => {
+    if (done) return;
+    clicks++;
+    zone.textContent = `Clicks: ${clicks}`;
+    zone.classList.add('active');
+    setTimeout(() => zone.classList.remove('active'), 50);
+  };
+  zone.onclick = addClick;
+  const keyHandler = e => { if (e.code === 'Space') { e.preventDefault(); addClick(); } };
+  window.addEventListener('keydown', keyHandler);
+
+  const timer = setInterval(() => {
+    const elapsed = (performance.now() - start) / 1000;
+    document.getElementById('progress-bar').style.width = Math.min(100, (elapsed / timeLimit) * 100) + '%';
+    if (elapsed >= timeLimit) {
+      clearInterval(timer);
+      done = true;
+      window.removeEventListener('keydown', keyHandler);
+      const score = Math.min(100, (clicks / target) * 100);
+      finishChallenge(score);
+    }
+  }, 50);
+}
+
+function runReactionGame(container, rounds) {
+  let current = 0;
+  let hits = 0;
+  let waiting = false;
+  container.innerHTML = `<div class="click-zone" id="react-zone">Wait for green...</div>
+    <p class="key-hint">Click only when the zone turns GREEN. ${rounds} rounds.</p>`;
+  const zone = document.getElementById('react-zone');
+
+  function nextRound() {
+    if (current >= rounds) {
+      finishChallenge((hits / rounds) * 100);
+      return;
+    }
+    current++;
+    waiting = true;
+    zone.style.background = 'var(--accent2)';
+    zone.style.borderColor = 'var(--accent)';
+    zone.textContent = 'Wait...';
+    const delay = 600 + Math.random() * 1400;
+    setTimeout(() => {
+      if (!waiting) return;
+      waiting = false;
+      zone.style.background = '#2ecc71';
+      zone.style.borderColor = '#27ae60';
+      zone.textContent = 'CLICK NOW!';
+      const appear = performance.now();
+      const clickHandler = () => {
+        zone.onclick = null;
+        const rt = performance.now() - appear;
+        if (rt < 700) hits++;
+        zone.textContent = rt < 700 ? 'Nice!' : 'Slow...';
+        setTimeout(nextRound, 400);
+      };
+      zone.onclick = clickHandler;
+      // auto fail after 1.2s
+      setTimeout(() => {
+        if (zone.onclick === clickHandler) {
+          zone.onclick = null;
+          zone.textContent = 'Too slow!';
+          setTimeout(nextRound, 400);
+        }
+      }, 1200);
+    }, delay);
+  }
+  // early click penalty
+  zone.onclick = () => {
+    if (waiting) {
+      waiting = false;
+      zone.textContent = 'Too early!';
+      zone.onclick = null;
+      setTimeout(nextRound, 500);
+    }
+  };
+  nextRound();
+}
+
+function runTimingGame(container, rounds) {
+  let current = 0;
+  let hits = 0;
+  container.innerHTML = `
+    <div class="progress-bar-outer" style="height:28px;max-width:100%;">
+      <div class="progress-bar-inner" id="timing-bar" style="width:0%;background:linear-gradient(90deg,#e94560,#ffd700,#4ecca3,#ffd700,#e94560);"></div>
+    </div>
+    <p style="margin:12px 0;">Click when the bar is in the <strong style="color:var(--safe)">green</strong> zone!</p>
+    <button id="timing-btn">HIT!</button>
+    <p class="key-hint">Round <span id="timing-round">1</span> / ${rounds}</p>
+  `;
+  const bar = document.getElementById('timing-bar');
+  const btn = document.getElementById('timing-btn');
+  let pos = 0;
+  let dir = 1;
+  let anim;
+
+  function startRound() {
+    if (current >= rounds) {
+      cancelAnimationFrame(anim);
+      finishChallenge((hits / rounds) * 100);
+      return;
+    }
+    current++;
+    document.getElementById('timing-round').textContent = current;
+    pos = 0;
+    dir = 1;
+    const speed = 1.8 + current * 0.15;
+
+    function tick() {
+      pos += dir * speed;
+      if (pos >= 100 || pos <= 0) dir *= -1;
+      bar.style.width = pos + '%';
+      anim = requestAnimationFrame(tick);
+    }
+    anim = requestAnimationFrame(tick);
+
+    btn.onclick = () => {
+      cancelAnimationFrame(anim);
+      // green zone roughly 40-60
+      if (pos >= 38 && pos <= 62) hits++;
+      btn.textContent = (pos >= 38 && pos <= 62) ? 'Perfect!' : 'Miss';
+      setTimeout(() => {
+        btn.textContent = 'HIT!';
+        startRound();
+      }, 450);
+    };
+  }
+  startRound();
+}
+
+function runQuiz(container) {
+  let idx = 0;
+  let correct = 0;
+  const qs = [...QUIZ_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 4);
+
+  function showQ() {
+    if (idx >= qs.length) {
+      finishChallenge((correct / qs.length) * 100);
+      return;
+    }
+    const q = qs[idx];
+    container.innerHTML = `<p style="font-size:1.15rem;margin-bottom:14px;">${q.q}</p>
+      <div class="quiz-options" id="quiz-opts"></div>`;
+    const opts = document.getElementById('quiz-opts');
+    q.a.forEach((ans, i) => {
+      const b = document.createElement('button');
+      b.textContent = ans;
+      b.onclick = () => {
+        if (i === q.correct) correct++;
+        idx++;
+        showQ();
+      };
+      opts.appendChild(b);
+    });
+  }
+  showQ();
+}
+
+// ========== VOTING ==========
+function doVoting() {
+  showScreen('screen-vote');
+  const voteLog = document.getElementById('vote-log');
+  voteLog.innerHTML = '';
+  const score = state.lastScore;
+
+  // Higher score = lower elimination chance
+  // Base risk ~ 35% at score 0, ~5% at score 100, adjusted by remaining players
+  const baseRisk = 0.38 - (score / 100) * 0.32;
+  const remaining = state.alive.length;
+  // Slightly higher risk when many still alive (early game)
+  const risk = Math.min(0.55, Math.max(0.03, baseRisk * (0.7 + remaining / 40)));
+
+  log(`Your performance score: <strong>${score}</strong>`, 'vote-log');
+  log(`Elimination risk this episode: <strong>${(risk * 100).toFixed(1)}%</strong>`, 'vote-log');
+
+  // Simulate other contestants getting "scores" and votes
+  // One person is eliminated (unless final few)
+  const others = state.alive.filter(id => id !== state.playerId);
+  // Weighted random elimination among everyone, with player having reduced weight
+  const weights = {};
+  state.alive.forEach(id => {
+    if (id === state.playerId) {
+      weights[id] = risk * 10; // player's weight proportional to risk
+    } else {
+      // others get random-ish performance
+      const otherScore = 30 + Math.random() * 60;
+      weights[id] = (0.38 - (otherScore / 100) * 0.32) * 10;
+    }
+  });
+
+  // Normalize and pick
+  let total = Object.values(weights).reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  let eliminatedId = state.alive[0];
+  for (const id of state.alive) {
+    r -= weights[id];
+    if (r <= 0) {
+      eliminatedId = id;
+      break;
+    }
+  }
+
+  // Safety: never eliminate if only 1 left (player wins)
+  if (state.alive.length <= 1) {
+    document.getElementById('vote-msg').innerHTML = `You are the last one standing!`;
+    log('🏆 Congratulations!', 'vote-log');
+    document.getElementById('btn-vote-continue').onclick = () => endGame(true);
+    return;
+  }
+
+  const elimC = CONTESTANTS.find(c => c.id === eliminatedId);
+  document.getElementById('vote-msg').innerHTML = `The votes are in...<br><br>Someone is going to the TLC.`;
+
+  setTimeout(() => {
+    log(`<strong style="color:var(--danger)">${elimC.emoji} ${elimC.name}</strong> has been eliminated!`, 'vote-log');
+    state.alive = state.alive.filter(id => id !== eliminatedId);
+    state.eliminated.push(eliminatedId);
+    updateStatus();
+
+    if (eliminatedId === state.playerId) {
+      document.getElementById('vote-msg').innerHTML = `Oh no! <strong>${state.playerEmoji} ${state.playerName}</strong> has been eliminated!`;
+      document.getElementById('btn-vote-continue').textContent = 'Go to the TLC';
+      document.getElementById('btn-vote-continue').onclick = () => startTLC();
+    } else {
+      document.getElementById('vote-msg').innerHTML = `${elimC.emoji} ${elimC.name} is eliminated.<br>You are safe!`;
+      document.getElementById('btn-vote-continue').textContent = 'Next Episode';
+      document.getElementById('btn-vote-continue').onclick = () => {
+        state.episode++;
+        showScreen('screen-game');
+        updateStatus();
+        startChallenge();
+      };
+    }
+  }, 800);
+}
+
+// ========== TLC ==========
+let tlcClicks = 0;
+let tlcTimerId = null;
+let tlcActive = false;
+
+function startTLC() {
+  showScreen('screen-tlc');
+  tlcClicks = 0;
+  tlcActive = true;
+  document.getElementById('tlc-count').textContent = 'Appeals: 0';
+  document.getElementById('tlc-timer').textContent = '30.0';
+  document.getElementById('tlc-result').classList.add('hidden');
+  document.getElementById('btn-tlc-done').classList.add('hidden');
+  document.getElementById('btn-appeal').disabled = false;
+
+  const start = performance.now();
+  tlcTimerId = setInterval(() => {
+    const left = Math.max(0, 30 - (performance.now() - start) / 1000);
+    document.getElementById('tlc-timer').textContent = left.toFixed(1);
+    if (left <= 0) {
+      clearInterval(tlcTimerId);
+      endTLC();
+    }
+  }, 50);
+}
+
+function endTLC() {
+  tlcActive = false;
+  document.getElementById('btn-appeal').disabled = true;
+  const result = document.getElementById('tlc-result');
+  result.classList.remove('hidden');
+  const btn = document.getElementById('btn-tlc-done');
+  btn.classList.remove('hidden');
+
+  if (tlcClicks >= 80) {
+    result.innerHTML = `<span style="color:var(--safe)">🎉 You made ${tlcClicks} appeals!<br>You REJOIN the game!</span>`;
+    // Put player back
+    state.alive.push(state.playerId);
+    state.eliminated = state.eliminated.filter(id => id !== state.playerId);
+    state.rejoined = true;
+    state.episode++; // continue to next
+    btn.textContent = 'Rejoin the competition';
+    btn.onclick = () => {
+      showScreen('screen-game');
+      updateStatus();
+      startChallenge();
+    };
+  } else {
+    result.innerHTML = `<span style="color:var(--danger)">You only made ${tlcClicks} appeals.<br>Permanently eliminated. Restart from Episode 1.</span>`;
+    btn.textContent = 'Restart from Episode 1';
+    btn.onclick = () => {
+      // full restart keeping same contestant
+      state.alive = CONTESTANTS.map(c => c.id);
+      state.eliminated = [];
+      state.episode = 0;
+      state.rejoined = false;
+      document.getElementById('game-log').innerHTML = '';
+      showScreen('screen-game');
+      updateStatus();
+      startChallenge();
+    };
+  }
+}
+
+document.getElementById('btn-appeal').onclick = () => {
+  if (!tlcActive) return;
+  tlcClicks++;
+  document.getElementById('tlc-count').textContent = `Appeals: ${tlcClicks}`;
+};
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && tlcActive) {
+    e.preventDefault();
+    tlcClicks++;
+    document.getElementById('tlc-count').textContent = `Appeals: ${tlcClicks}`;
+  }
+});
+
+// ========== END ==========
+function endGame(won) {
+  showScreen('screen-end');
+  if (won) {
+    document.getElementById('end-title').textContent = '🏆 You Won Dream Island!';
+    document.getElementById('end-msg').innerHTML = `Congratulations, <strong>${state.playerEmoji} ${state.playerName}</strong>!<br>
+      You survived all 25 episodes of BFDI Season 1 and claimed Dream Island.<br><br>
+      Final remaining contestants: ${state.alive.length}<br>
+      ${state.rejoined ? '(You even rejoined from the TLC once!)' : ''}`;
+  } else {
+    document.getElementById('end-title').textContent = 'Game Over';
+    document.getElementById('end-msg').textContent = 'Better luck next time!';
+  }
+}
+
+document.getElementById('btn-restart').onclick = () => {
+  showScreen('screen-select');
+  document.getElementById('btn-start').disabled = true;
+  document.querySelectorAll('.contestant-card').forEach(c => c.classList.remove('selected'));
+  state.playerId = null;
+};
+
+// Init
+updateStatus();
+</script>
+</body>
+</html>
